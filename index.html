@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Termux — Download for Android</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Space+Grotesk:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #1e1e1e;
+    --green: #00ff87;
+    --green-dim: #00c96a;
+    --green-glow: rgba(0,255,135,0.15);
+    --white: #f0f0f0;
+    --gray: #666;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+    cursor: default;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.05) 2px,
+      rgba(0,0,0,0.05) 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* Grid background */
+  .bg-grid {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,135,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,135,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow blob */
+  .bg-glow {
+    position: fixed;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(0,255,135,0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 60px 24px 80px;
+  }
+
+  /* Terminal bar */
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px 10px 0 0;
+    margin-bottom: 0;
+    width: fit-content;
+    animation: fadeDown 0.5s ease both;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green-dot { background: #28c840; }
+
+  .terminal-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--gray);
+    margin-left: 8px;
+    letter-spacing: 0.05em;
+  }
+
+  /* Hero card */
+  .hero-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 10px 10px 10px;
+    padding: 48px 48px 40px;
+    margin-bottom: 32px;
+    animation: fadeUp 0.6s ease both 0.1s;
+  }
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    margin-bottom: 40px;
+  }
+
+  .app-icon-wrap {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .app-icon {
+    width: 88px;
+    height: 88px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    font-size: 44px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .app-icon::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,255,135,0.1) 0%, transparent 60%);
+  }
+
+  .app-icon-wrap::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 21px;
+    padding: 1px;
+    background: linear-gradient(135deg, var(--green), transparent, transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+  }
+
+  .app-info h1 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: 6px;
+  }
+
+  .app-info .tagline {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--green);
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tagline::before {
+    content: '>';
+    opacity: 0.6;
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    margin-bottom: 36px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.02em;
+  }
+
+  .stat-val.green { color: var(--green); }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Download button */
+  .download-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--green);
+    color: #000;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 16px 32px;
+    border-radius: 8px;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-download::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s ease;
+  }
+
+  .btn-download:hover {
+    background: #00ffaa;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0,255,135,0.35);
+  }
+
+  .btn-download:hover::before {
+    transform: translateX(100%);
+  }
+
+  .btn-download:active {
+    transform: translateY(0);
+  }
+
+  .btn-download svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .version-badge {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--gray);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .version-badge span {
+    color: var(--white);
+    font-size: 13px;
+  }
+
+  /* Description */
+  .desc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 40px;
+    margin-bottom: 24px;
+    animation: fadeUp 0.6s ease both 0.2s;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::before {
+    content: '//';
+    opacity: 0.5;
+  }
+
+  .desc-text {
+    font-size: 15px;
+    line-height: 1.8;
+    color: #aaa;
+    max-width: 680px;
+  }
+
+  /* Features */
+  .features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .feature-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px;
+    background: rgba(0,255,135,0.03);
+    border: 1px solid rgba(0,255,135,0.08);
+    border-radius: 8px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .feature-item:hover {
+    border-color: rgba(0,255,135,0.2);
+    background: rgba(0,255,135,0.06);
+  }
+
+  .feature-icon {
+    font-size: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .feature-text h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e0e0e0;
+    margin-bottom: 4px;
+    letter-spacing: -0.01em;
+  }
+
+  .feature-text p {
+    font-size: 12px;
+    color: var(--gray);
+    line-height: 1.6;
+    font-family: var(--mono);
+  }
+
+  /* Info row */
+  .info-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    animation: fadeUp 0.6s ease both 0.3s;
+  }
+
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+  }
+
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .info-table tr {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .info-table tr:last-child {
+    border-bottom: none;
+  }
+
+  .info-table td {
+    padding: 10px 0;
+    font-size: 13px;
+  }
+
+  .info-table td:first-child {
+    color: var(--gray);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    width: 45%;
+  }
+
+  .info-table td:last-child {
+    color: #ddd;
+    font-weight: 500;
+  }
+
+  /* Rating */
+  .rating-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .rating-num {
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--green);
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .stars {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .star-icons {
+    display: flex;
+    gap: 3px;
+  }
+
+  .star-icons span {
+    color: var(--green);
+    font-size: 16px;
+  }
+
+  .star-icons span.empty {
+    opacity: 0.2;
+  }
+
+  .rating-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: 0.04em;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 40px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #333;
+    letter-spacing: 0.05em;
+    animation: fadeUp 0.6s ease both 0.4s;
+  }
+
+  .footer a {
+    color: rgba(0,255,135,0.4);
+    text-decoration: none;
+  }
+
+  /* Animations */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Cursor blink */
+  .cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    background: var(--green);
+    margin-left: 4px;
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ── Detya Navbar ── */
+  .detya-nav {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid rgba(0,255,135,0.08);
+    background: rgba(10,10,10,0.8);
+    backdrop-filter: blur(12px);
+    animation: fadeDown 0.4s ease both;
+  }
+
+  .detya-logo {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.15em;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .logo-d {
+    color: var(--green);
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .detya-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: 0.06em;
+  }
+
+  .nav-tag { color: var(--gray); }
+  .nav-tag.active { color: var(--green); }
+  .nav-sep { opacity: 0.3; }
+
+  /* ── Detya Hero ── */
+  .detya-hero {
+    position: relative;
+    z-index: 5;
+    padding: 80px 40px 64px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    animation: fadeDown 0.5s ease both 0.05s;
+  }
+
+  .detya-hero::before {
+    content: 'DETYA';
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--mono);
+    font-size: 160px;
+    font-weight: 700;
+    color: rgba(0,255,135,0.03);
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .detya-hero-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  .detya-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .detya-eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 24px;
+    height: 1px;
+    background: var(--green);
+    opacity: 0.6;
+  }
+
+  .detya-heading {
+    font-size: clamp(36px, 5vw, 58px);
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    margin-bottom: 18px;
+  }
+
+  .detya-highlight {
+    color: var(--green);
+    position: relative;
+  }
+
+  .detya-sub {
+    font-size: 15px;
+    color: #555;
+    max-width: 480px;
+    line-height: 1.7;
+    font-family: var(--mono);
+  }
+
+  /* ── wrapper now sits below hero ── */
+  .wrapper {
+    padding-top: 40px;
+  }
+
+  /* Mobile */
+  @media (max-width: 640px) {
+    .detya-nav { padding: 16px 20px; }
+    .detya-hero { padding: 48px 20px 40px; }
+    .detya-hero::before { font-size: 80px; }
+    .hero-card { padding: 28px 20px; }
+    .app-header { flex-direction: column; align-items: flex-start; gap: 18px; }
+    .app-info h1 { font-size: 28px; }
+    .stats-row { gap: 20px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .info-row { grid-template-columns: 1fr; }
+    .desc-card { padding: 24px 20px; }
+    .wrapper { padding: 32px 16px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+
+<!-- Detya Navbar -->
+<nav class="detya-nav">
+  <div class="detya-logo">
+    <span class="logo-d">D</span>ETYA
+  </div>
+  <div class="detya-nav-right">
+    <span class="nav-tag">Tools</span>
+    <span class="nav-sep">/</span>
+    <span class="nav-tag active">Termux</span>
+  </div>
+</nav>
+
+<!-- Detya Hero -->
+<div class="detya-hero">
+  <div class="detya-hero-inner">
+    <div class="detya-eyebrow">Presented by Detya</div>
+    <h2 class="detya-heading">Developer <span class="detya-highlight">Tools</span><br>Worth Installing</h2>
+    <p class="detya-sub">Curated by Detya — handpicked tools for builders, developers & tech enthusiasts.</p>
+  </div>
+</div>
+
+<div class="wrapper">
+
+  <!-- Terminal titlebar -->
+  <div class="terminal-bar">
+    <div class="dot red"></div>
+    <div class="dot yellow"></div>
+    <div class="dot green-dot"></div>
+    <span class="terminal-title">termux-download.sh</span>
+  </div>
+
+  <!-- Hero card -->
+  <div class="hero-card">
+    <div class="app-header">
+      <div class="app-icon-wrap">
+        <div class="app-icon">
+          <img src="https://img.utdstc.com/icon/f67/0ec/f670ec44b367a32ae09385a06be84b7fead85ba37f6c749a5db2070db4ffa902" 
+               alt="Termux" 
+               width="64" height="64"
+               style="border-radius:12px; position:relative; z-index:1;"
+               onerror="this.style.display='none'; this.parentElement.innerHTML='<span style=\'font-size:44px;position:relative;z-index:1;\'>⬛</span>'">
+        </div>
+      </div>
+      <div class="app-info">
+        <h1>Termux<span class="cursor"></span></h1>
+        <div class="tagline">Linux terminal emulator for Android</div>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-val green">4.4</div>
+        <div class="stat-label">Rating</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">6.1M+</div>
+        <div class="stat-label">Downloads</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">Free</div>
+        <div class="stat-label">License</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">66 MB</div>
+        <div class="stat-label">File Size</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">Android 11+</div>
+        <div class="stat-label">Requirement</div>
+      </div>
+    </div>
+
+    <div class="download-section">
+      <a href="https://termux.en.uptodown.com/android/download" target="_blank" class="btn-download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        DOWNLOAD APK
+      </a>
+      <div class="version-badge">
+        Latest Version<br>
+        <span>googleplay.2026.02.11</span>
+        <span style="color:var(--gray); font-size:11px;">Mar 26, 2026</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Description -->
+  <div class="desc-card">
+    <div class="section-label">About</div>
+    <p class="desc-text">
+      Termux is a powerful open-source terminal emulator for Android that brings the full Linux command-line experience to your smartphone. 
+      No root access needed — install Python, Node.js, Git, GCC, Vim, and hundreds of other packages directly on your device.
+    </p>
+
+    <div class="features-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🐧</div>
+        <div class="feature-text">
+          <h4>Full Linux Environment</h4>
+          <p>Bash shell, coreutils & package manager built-in</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📦</div>
+        <div class="feature-text">
+          <h4>Thousands of Packages</h4>
+          <p>Python, Node.js, Ruby, GCC, Git, Curl & more</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔓</div>
+        <div class="feature-text">
+          <h4>No Root Required</h4>
+          <p>Works on standard Android — root optional</p>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🖥️</div>
+        <div class="feature-text">
+          <h4>Multi-Session Support</h4>
+          <p>Manage multiple terminal sessions at once</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Info + Rating row -->
+  <div class="info-row">
+    <div class="info-card">
+      <div class="section-label">Info</div>
+      <table class="info-table">
+        <tr><td>DEVELOPER</td><td>Fredrik Fornwall</td></tr>
+        <tr><td>CATEGORY</td><td>Tools / General</td></tr>
+        <tr><td>FILE TYPE</td><td>XAPK</td></tr>
+        <tr><td>PACKAGE</td><td>com.termux</td></tr>
+        <tr><td>SOURCE</td><td>Open Source</td></tr>
+      </table>
+    </div>
+
+    <div class="info-card">
+      <div class="section-label">Rating</div>
+      <div class="rating-display">
+        <div class="rating-num">4.4</div>
+        <div class="stars">
+          <div class="star-icons">
+            <span>★</span><span>★</span><span>★</span><span>★</span><span class="empty">★</span>
+          </div>
+          <div class="rating-count">652 REVIEWS</div>
+        </div>
+      </div>
+      <p style="font-family:var(--mono); font-size:11px; color:var(--gray); margin-top:16px; line-height:1.7;">
+        Users call it one of the best apps for Android development. Highly recommended by coders worldwide.
+      </p>
+    </div>
+  </div>
+
+  <div class="footer">
+    &copy; 2026 <a href="#">Detya</a> &nbsp;·&nbsp; 
+    Source: <a href="https://termux.en.uptodown.com/android" target="_blank">Uptodown</a> &nbsp;·&nbsp; 
+    Developer: Fredrik Fornwall
+  </div>
+
+</div>
+
+</body>
+</html>
